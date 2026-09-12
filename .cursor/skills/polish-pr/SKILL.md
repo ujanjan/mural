@@ -121,13 +121,16 @@ COMMIT_SHA=$(git rev-parse --short HEAD)
 while IFS= read -r t; do
   [ -z "$t" ] && continue
   THREAD_ID=$(printf '%s' "$t" | jq -r .threadId); COMMENT_ID=$(printf '%s' "$t" | jq -r .commentId)
-  DISPO=$(grep -E "^$COMMENT_ID " /tmp/polish-pr-dispo-$PR_NUMBER || echo "")
+  DISPO=$(awk -v id="$COMMENT_ID" '$1 == id {print $2; exit}' /tmp/polish-pr-dispo-$PR_NUMBER)
+  # Match the disposition FIELD exactly, never the free-form text: a SKIP reason
+  # containing the word FIXED (e.g. "SKIP already FIXED upstream") must not resolve.
   case "$DISPO" in
-    *FIXED*)
+    FIXED)
       gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Fixed in $COMMIT_SHA"
       gh api graphql -f query="mutation { resolveReviewThread(input: {threadId: \"$THREAD_ID\"}) { thread { isResolved } } }" ;;
-    *SKIP*)
-      gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Not applied: ${DISPO#*SKIP }" ;;
+    SKIP)
+      REASON=$(awk -v id="$COMMENT_ID" '$1 == id {$1=""; $2=""; print}' /tmp/polish-pr-dispo-$PR_NUMBER)
+      gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Not applied:$REASON" ;;
     *) echo "no disposition for $COMMENT_ID - not resolving" >&2 ;;
   esac
 done < /tmp/polish-pr-threads-$PR_NUMBER
