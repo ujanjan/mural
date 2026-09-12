@@ -349,7 +349,7 @@ struct SettingsView: View {
                                 catch { message = error.localizedDescription }
                             }.disabled(coordinator.isRunning)
                         }
-                        Text("Used when the MURAL_VOICE_PROVIDER environment variable is "gemini" (see docs/build-and-test.md). The key stays in \(PlatformInfo.deviceName)’s Keychain and is sent only to Google.")
+                        Text("Used when the MURAL_VOICE_PROVIDER environment variable is set to gemini (see docs/build-and-test.md). The key stays in \(PlatformInfo.deviceName)’s Keychain and is sent only to Google.")
                             .font(.footnote).foregroundStyle(MuralColor.secondary)
                     } label: { Label("Use your own API key", systemImage: "key").accessibilityIdentifier("advanced-api-key") }
                     if let message { Text(message).font(.footnote).foregroundStyle(MuralColor.secondary) }

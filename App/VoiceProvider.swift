@@ -24,7 +24,7 @@ enum VoiceProvider: String {
     func connect(api: APIClient, instructions: String, history: [[String: Any]]) async throws
     @discardableResult func send(_ event: [String: Any]) -> Bool
     func mute(_ muted: Bool)
-    func close()
+    func close(reason: String)
     func disconnect()
 }
 

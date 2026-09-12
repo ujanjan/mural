@@ -87,10 +87,17 @@ import AVFoundation
         switch type {
         case "session.instructions.append", "session.thinking.append", "session.commentary.append":
             guard let content = event["content"] as? String, !content.isEmpty else { return true }
-            enqueue(["clientContent": ["turns": [["role": "user", "parts": [["text": content]]]], "turnComplete": true]])
-            // The OpenAI protocol acks accepted commands; keep the coordinator's bookkeeping happy.
+            let payload: [String: Any] = ["clientContent": ["turns": [["role": "user", "parts": [["text": content]]]], "turnComplete": true]]
             if let id = event["event_id"] as? String {
-                onEvent?(["type": type.replacingOccurrences(of: ".append", with: ".appended"), "client_event_id": id])
+                // The OpenAI protocol acks accepted commands; keep the coordinator's bookkeeping
+                // happy - but only after the write actually lands on the socket.
+                let ack: [String: Any] = ["type": type.replacingOccurrences(of: ".append", with: ".appended"), "client_event_id": id]
+                enqueue(payload) { [weak self] ok in
+                    guard ok, let self else { return }
+                    self.onEvent?(ack)
+                }
+            } else {
+                enqueue(payload)
             }
             return true
         case "session.input_audio.mute": pipe?.setMuted(true); return true
@@ -102,7 +109,7 @@ import AVFoundation
 
     func mute(_ muted: Bool) { pipe?.setMuted(muted) }
 
-    func close() {
+    func close(reason: String) {
         closing = true
         let seconds = started ? Date().timeIntervalSince(startedAt) : 0
         let socket = self.socket
@@ -112,7 +119,7 @@ import AVFoundation
             try? await socket?.send(.string(#"{"clientContent":{"turns":[{"role":"user","parts":[{"text":"The learner ended the conversation."}]}],"turnComplete":true}}"#))
             socket?.cancel(with: .normalClosure, reason: nil)
         }
-        onEvent?(["type": "session.closed", "reason": "Ended by you", "usage": ["seconds": seconds]])
+        onEvent?(["type": "session.closed", "reason": reason, "usage": ["seconds": seconds]])
     }
 
     func disconnect() {
@@ -133,14 +140,20 @@ import AVFoundation
     }
 
     /// Serializes WebSocket writes; concurrent sends on one task can fail.
-    private func enqueue(_ object: [String: Any]) {
-        guard let socket else { return }
+    /// onSent reports whether this write actually reached the socket.
+    private func enqueue(_ object: [String: Any], onSent: (@escaping (Bool) -> Void)? = nil) {
+        guard let socket else { onSent?(false); return }
         let previous = sendChain
         sendChain = Task {
             _ = await previous?.result
             guard let data = try? JSONSerialization.data(withJSONObject: object),
-                  let text = String(data: data, encoding: .utf8) else { return }
-            try? await socket.send(.string(text))
+                  let text = String(data: data, encoding: .utf8) else { onSent?(false); return }
+            do {
+                try await socket.send(.string(text))
+                onSent?(true)
+            } catch {
+                onSent?(false)
+            }
         }
     }
 

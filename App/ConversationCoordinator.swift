@@ -208,7 +208,7 @@ import MuralCore
         durationTask?.cancel(); working = false
         session?.endReason = reason
         if wasConnecting { finish(final: false); return }
-        transport.close()
+        transport.close(reason: reason)
         closeTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled, self?.state == .closing else { return }

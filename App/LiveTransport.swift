@@ -107,7 +107,9 @@ enum ConnectionState: Equatable { case idle, connecting, active, closing, ended,
         isMuted = muted; localTrack?.isEnabled = !muted
         _ = send(["type": muted ? "session.input_audio.mute" : "session.input_audio.unmute", "event_id": UUID().uuidString])
     }
-    func close() {
+    // The OpenAI server echoes the close back as session.closed; the reason param keeps
+    // the protocol uniform with GeminiLiveTransport, which needs it to report correctly.
+    func close(reason _: String) {
         closing = true; localTrack?.isEnabled = false; isMuted = true
         _ = send(["type": "session.close", "event_id": UUID().uuidString])
     }
