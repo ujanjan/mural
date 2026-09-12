@@ -92,7 +92,7 @@ No unresolved threads but score <5 is the common case: the finding is in the sum
 
 ## Step 5: Fix the issues
 
-Minimal, targeted changes only - nothing unrelated. Run quality gates before every push:
+Minimal, targeted changes only - nothing unrelated. Decide a disposition for every thread in the Step 4 worklist: FIXED (you actually changed code for it) or SKIP with a concrete reason (wrong for this codebase, conflicts with a platform constraint, false positive). Never mark a thread FIXED without a change that addresses it. Run quality gates before every push:
 
 ```bash
 swift test                                   # Core package (needs a Mac; CI job swift-core runs it on macos-15)
@@ -106,19 +106,34 @@ git add -A && git commit -m "fix: address PR review comments (iteration $ITERS)"
 date -u +"%Y-%m-%dT%H:%M:%SZ" > /tmp/polish-pr-pushts-$PR_NUMBER
 ```
 
-## Step 6: Resolve each fixed thread
+Then write the disposition file, one line per Step 4 thread - `FIXED` only when this push really addresses it:
 
-For every thread addressed, reply and resolve using identifiers from the Step 4 file - never empty IDs:
+```bash
+# /tmp/polish-pr-dispo-$PR_NUMBER: per line, "<commentId> FIXED" or "<commentId> SKIP <reason>"
+```
+
+## Step 6: Resolve only the threads you actually fixed
+
+Reply and resolve ONLY threads marked FIXED in the disposition file, using identifiers from the Step 4 file - never empty IDs, and never resolve a thread whose finding was not addressed in a pushed commit. For SKIP threads: reply with the reason and leave them unresolved; the done-gate stays open on them until they are fixed or the user overrules.
 
 ```bash
 COMMIT_SHA=$(git rev-parse --short HEAD)
 while IFS= read -r t; do
   [ -z "$t" ] && continue
   THREAD_ID=$(printf '%s' "$t" | jq -r .threadId); COMMENT_ID=$(printf '%s' "$t" | jq -r .commentId)
-  gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Fixed in $COMMIT_SHA"
-  gh api graphql -f query="mutation { resolveReviewThread(input: {threadId: \"$THREAD_ID\"}) { thread { isResolved } } }"
+  DISPO=$(grep -E "^$COMMENT_ID " /tmp/polish-pr-dispo-$PR_NUMBER || echo "")
+  case "$DISPO" in
+    *FIXED*)
+      gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Fixed in $COMMIT_SHA"
+      gh api graphql -f query="mutation { resolveReviewThread(input: {threadId: \"$THREAD_ID\"}) { thread { isResolved } } }" ;;
+    *SKIP*)
+      gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body="Not applied: ${DISPO#*SKIP }" ;;
+    *) echo "no disposition for $COMMENT_ID - not resolving" >&2 ;;
+  esac
 done < /tmp/polish-pr-threads-$PR_NUMBER
 ```
+
+A zero unresolved-thread count is only meaningful when every resolution is backed by a fix. Resolving an unaddressed thread makes the done-gate lie.
 
 ## Step 7: Poll for Greptile's new review
 
@@ -145,3 +160,4 @@ Still nothing after 10 minutes: wait another 5, re-enter from Step 2. Genuinely 
 - Greptile's re-trigger link is browser-auth-gated; rely on post-push auto review, the status check, and `@greptileai` comments for manual retriggering.
 - Draft PRs get no Greptile run. Undraft only on explicit `/polish-pr`.
 - Each iteration addresses only what Greptile, reviewers, or CI flagged.
+- The resolution trap: snapshotting unresolved threads and later resolving the whole snapshot unconditionally can close findings nobody fixed. Step 5's disposition file is the guard - FIXED means a pushed change addresses the finding; anything else stays unresolved with an explanatory reply.
