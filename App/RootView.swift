@@ -34,7 +34,15 @@ struct RootView: View {
         #if os(iOS)
         .fullScreenCover(isPresented: $onboarding) { OnboardingView(coordinator: coordinator) { coordinator.store.updatePreferences { $0.hasOnboarded = true }; onboarding = false } }
         #else
-        .sheet(isPresented: $onboarding) { OnboardingView(coordinator: coordinator) { coordinator.store.updatePreferences { $0.hasOnboarded = true }; onboarding = false } }
+        .sheet(isPresented: $onboarding, onDismiss: {
+            // macOS sheets close via Escape or the window close control. Onboarding is required
+            // setup, so an incomplete dismissal re-presents it - the same guarantee
+            // interactiveDismissDisabled gives on iOS. Completion sets hasOnboarded before
+            // dismissing, so a finished onboarding never re-appears.
+            if !coordinator.store.preferences.hasOnboarded {
+                DispatchQueue.main.async { onboarding = true }
+            }
+        }) { OnboardingView(coordinator: coordinator) { coordinator.store.updatePreferences { $0.hasOnboarded = true }; onboarding = false } }
         #endif
         .alert("A little interruption", isPresented: Binding(get: { coordinator.error != nil || coordinator.store.error != nil }, set: { if !$0 { coordinator.error = nil; coordinator.store.error = nil } })) {
             Button("OK", role: .cancel) { coordinator.error = nil; coordinator.store.error = nil }

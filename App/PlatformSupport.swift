@@ -39,7 +39,7 @@ extension View {
         #endif
     }
 
-    /// Onboarding and AI consent must not be swiped away on iOS; macOS sheets are dismissed deliberately.
+    /// Onboarding and AI consent must not be swiped away on iOS. macOS has no equivalent modifier; RootView re-presents onboarding when an incomplete sheet is dismissed, and the AI consent flow handles its own dismissal.
     @ViewBuilder func muralInteractiveDismissDisabled() -> some View {
         #if os(iOS)
         interactiveDismissDisabled()
