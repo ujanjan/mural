@@ -93,8 +93,15 @@ import AVFoundation
                 // happy - but only after the write actually lands on the socket.
                 let ack: [String: Any] = ["type": type.replacingOccurrences(of: ".append", with: ".appended"), "client_event_id": id]
                 enqueue(payload) { [weak self] ok in
-                    guard ok, let self else { return }
-                    self.onEvent?(ack)
+                    guard let self else { return }
+                    if ok {
+                        self.onEvent?(ack)
+                    } else {
+                        // Surface the failure through the coordinator's existing error path:
+                        // drops the pending command and shows the "voice update was rejected" notice
+                        // instead of letting the command time out silently.
+                        self.onEvent?(["type": "error", "error": ["client_event_id": id]])
+                    }
                 }
             } else {
                 enqueue(payload)
