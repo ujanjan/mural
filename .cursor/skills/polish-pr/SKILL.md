@@ -16,6 +16,8 @@ A 4/5 (or any <5) summary with an unaddressed finding in its **body** is NOT don
 
 **Explicit invoke only for undraft.** Mark a draft PR ready for review only when the user asked for `/polish-pr`. Greptile skips drafts, so a draft loop sits on NO_REVIEW forever.
 
+**Default trigger (this repo):** the loop is the standing default - run it on every PR you open here without waiting to be asked (see AGENTS.md). `/polish-pr` is only needed to undraft a draft or restart a stalled loop.
+
 **Fork caveat:** on a fresh GitHub fork, Actions workflows are disabled until the owner enables them (repo Actions tab, or `gh api -X PUT repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable`). If the `Checks` workflow never appears on PR commits, enable it first - the CI gate cannot go green otherwise.
 
 ## Step 1: Get PR context
