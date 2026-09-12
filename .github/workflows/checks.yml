@@ -1,4 +1,5 @@
 name: Checks
+# Registered on fork: this comment touch publishes the workflow to the fork Actions tab.
 on:
   push:
     branches: [main]
