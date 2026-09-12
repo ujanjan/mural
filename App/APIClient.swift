@@ -30,6 +30,7 @@ struct APIResult { var text: String; var sources: [SourceLink]; var usage: APIUs
         return json
     }
     func respond(instructions: String, input: String, schema: [String: Any]? = nil, search: Bool = false) async throws -> APIResult {
+        if VoiceProvider.current == .gemini { return try await geminiRespond(instructions: instructions, input: input, schema: schema, search: search) }
         var body: [String: Any] = ["model": "gpt-5.6-luna", "store": false, "instructions": instructions,
                                   "input": [["role": "user", "content": input]], "max_output_tokens": schema == nil ? 1400 : 2200,
                                   "reasoning": ["effort": "low"]]
@@ -54,6 +55,61 @@ struct APIResult { var text: String; var sources: [SourceLink]; var usage: APIUs
         guard !text.isEmpty else { throw APIError.incomplete }
         return APIResult(text: text, sources: sources, usage: usage)
     }
+    // MARK: Gemini text path (AI Studio key, used when MURAL_VOICE_PROVIDER=gemini)
+
+    private static let geminiTextModel = "gemini-3.5-flash"
+
+    private func geminiRespond(instructions: String, input: String, schema: [String: Any]?, search: Bool) async throws -> APIResult {
+        guard let key = CredentialStore.geminiRead() else { throw APIError.missingKey }
+        var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(Self.geminiTextModel):generateContent")!
+        components.queryItems = [URLQueryItem(name: "key", value: key)]
+        var request = URLRequest(url: components.url!, timeoutInterval: 45)
+        request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var generation: [String: Any] = ["maxOutputTokens": schema == nil ? 1400 : 2200]
+        if let schema { generation["responseMimeType"] = "application/json"; generation["responseSchema"] = Self.geminiSchema(schema) }
+        var body: [String: Any] = ["systemInstruction": ["parts": [["text": instructions]]],
+                                   "contents": [["role": "user", "parts": [["text": input]]]],
+                                   "generationConfig": generation]
+        if search { body["tools"] = [["google_search": [:] as [String: Any]]] }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else { throw APIError.http(http.statusCode) }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw APIError.invalidResponse }
+        var text = "", sources: [SourceLink] = [], usage = APIUsage()
+        for candidate in json["candidates"] as? [[String: Any]] ?? [] {
+            for part in (candidate["content"] as? [String: Any])?["parts"] as? [[String: Any]] ?? [] {
+                if let block = part["text"] as? String { text += block }
+            }
+            if let grounding = candidate["groundingMetadata"] as? [String: Any] {
+                if grounding["groundingChunks"] != nil { usage.searches += 1 }
+                for chunk in grounding["groundingChunks"] as? [[String: Any]] ?? [] {
+                    guard let web = chunk["web"] as? [String: Any], let url = web["uri"] as? String else { continue }
+                    let source = SourceLink(title: web["title"] as? String ?? "Source", url: url)
+                    if source.safeURL != nil && !sources.contains(where: { $0.url == url }) { sources.append(source) }
+                }
+            }
+        }
+        if let u = json["usageMetadata"] as? [String: Any] {
+            usage.input = u["promptTokenCount"] as? Int ?? 0; usage.output = u["candidatesTokenCount"] as? Int ?? 0
+        }
+        guard !text.isEmpty else { throw APIError.incomplete }
+        return APIResult(text: text, sources: sources, usage: usage)
+    }
+
+    /// OpenAI-flavoured JSON schema -> Gemini's OpenAPI-subset Schema (uppercase types, no additionalProperties).
+    private static func geminiSchema(_ schema: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        if let type = schema["type"] as? String { out["type"] = type.uppercased() }
+        if let properties = schema["properties"] as? [String: Any] {
+            out["properties"] = properties.mapValues { geminiSchema($0 as? [String: Any] ?? [:]) }
+        }
+        for key in ["required", "enum", "minimum", "maximum", "maxItems"] { if let value = schema[key] { out[key] = value } }
+        if let items = schema["items"] as? [String: Any] { out["items"] = geminiSchema(items) }
+        return out
+    }
+
     static func object(_ fields: [String: Any]) -> [String: Any] { ["type": "object", "properties": fields, "required": fields.keys.sorted(), "additionalProperties": false] }
     static let string: [String: Any] = ["type": "string"]
     static func assessmentSchema(language: LanguageModule) -> [String: Any] { object([

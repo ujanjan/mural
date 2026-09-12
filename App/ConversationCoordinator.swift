@@ -27,7 +27,7 @@ import MuralCore
     var showAIConsent = false
     private var startAfterConsent = false
     private let api: APIClient
-    private let transport = LiveTransport()
+    private let transport: LiveTransporting = VoiceProvider.current == .gemini ? GeminiLiveTransport() : LiveTransport()
     private var connectionTask: Task<Void, Never>?
     private var assessmentTask: Task<Void, Never>?
     private var delegationTasks: [String: Task<Void, Never>] = [:]
@@ -115,7 +115,7 @@ import MuralCore
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--preview") { showSettings = true; return }
         #endif
-        guard CredentialStore.hasKey else { showSettings = true; return }
+        guard CredentialStore.hasActiveKey else { showSettings = true; return }
         cancelReset(); meanings.reset()
         error = nil; notice = nil; lastAssessmentKey = ""
         lastLanguageCheck = ""; pendingCommands = [:]
@@ -208,7 +208,7 @@ import MuralCore
         durationTask?.cancel(); working = false
         session?.endReason = reason
         if wasConnecting { finish(final: false); return }
-        transport.close()
+        transport.close(reason: reason)
         closeTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled, self?.state == .closing else { return }
