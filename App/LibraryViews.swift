@@ -291,6 +291,8 @@ struct SettingsView: View {
     @State private var deleting = false
     @State private var notices = false
     @State private var showingAPIKey = false
+    @State private var geminiKey = ""
+    @State private var geminiHasKey = CredentialStore.geminiHasKey
     private var store: LearningStore { coordinator.store }
     private var totalVoiceSeconds: Double { store.sessions.reduce(0) { $0 + $1.voiceSeconds } }
     var body: some View {
@@ -331,6 +333,23 @@ struct SettingsView: View {
                             }.disabled(coordinator.isRunning)
                         }
                         Text("Your OpenAI account pays for usage. The key stays in \(PlatformInfo.deviceName)’s Keychain and is sent only to OpenAI.")
+                            .font(.footnote).foregroundStyle(MuralColor.secondary)
+                        Divider().padding(.vertical, 6)
+                        if geminiHasKey { Label("Your Google AI Studio key is saved on \(PlatformInfo.deviceName)", systemImage: "checkmark.shield") }
+                        SecureField(geminiHasKey ? "Replace Google AI Studio key" : "Google AI Studio key", text: $geminiKey)
+                            .muralNoAutocapitalization().autocorrectionDisabled().privacySensitive().accessibilityIdentifier("gemini-api-key")
+                        Button(geminiHasKey ? "Save replacement key" : "Save key") {
+                            do { try CredentialStore.geminiSave(geminiKey); geminiKey = ""; geminiHasKey = true; message = "Saved securely. Start a conversation to connect." }
+                            catch { message = error.localizedDescription }
+                        }.disabled(geminiKey.isEmpty || coordinator.isRunning)
+                        Link("Open Google AI Studio", destination: URL(string: "https://aistudio.google.com/api-keys")!)
+                        if geminiHasKey {
+                            Button("Remove Gemini key", role: .destructive) {
+                                do { try CredentialStore.geminiDelete(); geminiHasKey = false; message = "Your key has been removed." }
+                                catch { message = error.localizedDescription }
+                            }.disabled(coordinator.isRunning)
+                        }
+                        Text("Used when the MURAL_VOICE_PROVIDER environment variable is "gemini" (see docs/build-and-test.md). The key stays in \(PlatformInfo.deviceName)’s Keychain and is sent only to Google.")
                             .font(.footnote).foregroundStyle(MuralColor.secondary)
                     } label: { Label("Use your own API key", systemImage: "key").accessibilityIdentifier("advanced-api-key") }
                     if let message { Text(message).font(.footnote).foregroundStyle(MuralColor.secondary) }
