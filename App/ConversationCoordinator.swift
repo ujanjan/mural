@@ -2,7 +2,9 @@ import Foundation
 import Observation
 import NaturalLanguage
 import AVFoundation
+#if os(iOS)
 import UIKit
+#endif
 import MuralCore
 
 @MainActor @Observable final class ConversationCoordinator {
@@ -39,7 +41,9 @@ import MuralCore
     private var lastAssessmentKey = ""
     private var pendingTopic: TopicBrief?
     private var languageGeneration = UUID()
+    #if os(iOS)
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    #endif
     private var resetTask: Task<Void, Never>?
     private var resetDeadline: Date?
 
@@ -75,10 +79,13 @@ import MuralCore
             if input > 0.03 || output > 0.03 { self.lastActivity = .now }
         }
         transport.onFailure = { [weak self] in self?.fail($0) }
+        #if os(iOS)
+        // Phone calls and Siri interrupt the audio session on iOS; macOS has no shared session interruptions.
         observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
             guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt, raw == AVAudioSession.InterruptionType.began.rawValue else { return }
             Task { @MainActor in self?.end(reason: "Audio interrupted") }
         })
+        #endif
     }
     var isRunning: Bool { state == .active || state == .connecting || state == .closing }
     var language: LanguageModule { store.language }
@@ -210,9 +217,11 @@ import MuralCore
     }
     func background() {
         guard isRunning else { return }
+        #if os(iOS)
         backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Close Mural conversation") { [weak self] in
             Task { @MainActor in self?.finish(final: false) }
         }
+        #endif
         end(reason: "App moved to background")
     }
     private func finish(final: Bool) {
@@ -226,7 +235,9 @@ import MuralCore
         if let session { finalAssessments.submit(session) }
         scheduleTranslation(); scheduleReset()
         if !final, session?.providerID != nil { notice = "Conversation saved. Final voice usage is unconfirmed." }
+        #if os(iOS)
         if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask); backgroundTask = .invalid }
+        #endif
     }
     private func fail(_ message: String) {
         error = message; session?.endReason = "Connection failed"

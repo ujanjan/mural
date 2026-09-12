@@ -123,7 +123,7 @@ enum CredentialStore {
             switch self {
             case .invalid: "Enter a valid OpenAI API key."
             case .save: "The key couldn’t be saved to this device’s Keychain."
-            case .remove: "The key couldn’t be removed. Unlock this iPhone and try again."
+            case .remove: "The key couldn’t be removed. Unlock this device and try again."
             }
         }
     }

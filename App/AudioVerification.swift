@@ -10,7 +10,7 @@ enum AudioVerification {
     }
 }
 
-#if DEBUG
+#if DEBUG && os(iOS)
 import AVFoundation
 import UIKit
 import WebRTC
@@ -230,6 +230,17 @@ extension AudioVerification {
             coordinator.caption == coordinator.language.greeting && endedAt.map { Date().timeIntervalSince($0) >= 14.5 } == true
         report.savedConversationRetained = coordinator.store.sessions.contains { $0.id == sessionID && $0.endedAt != nil && !$0.fragments.isEmpty }
         report.status = "complete"; write()
+    }
+}
+#elseif DEBUG
+import MuralCore
+
+extension AudioVerification {
+    /// Live audio verification is an iPhone QA tool. On macOS it only records that it cannot run.
+    @MainActor static func run(_ coordinator: ConversationCoordinator) async {
+        let destination = URL.documentsDirectory.appendingPathComponent("audio-verification.json")
+        let payload = try? JSONEncoder().encode(["status": "unsupported-platform", "languageID": coordinator.language.id])
+        try? payload?.write(to: destination, options: .atomic)
     }
 }
 #endif

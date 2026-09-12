@@ -206,4 +206,18 @@ final class MuralUITests: XCTestCase {
         app.buttons["Done"].tap()
         XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
     }
+
+    func testSettingsCanSwitchToSwedishAndBackToNorwegian() {
+        let app = launch()
+        app.buttons["Settings"].tap()
+        app.buttons["learning-language-picker"].tap()
+        app.buttons["Swedish · Sweden"].tap()
+        app.buttons["Done"].tap()
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hej!")
+        app.buttons["Settings"].tap()
+        app.buttons["learning-language-picker"].tap()
+        app.buttons["Norwegian · Bokmål"].tap()
+        app.buttons["Done"].tap()
+        XCTAssertEqual(app.staticTexts["target-caption"].label, "Hei!")
+    }
 }

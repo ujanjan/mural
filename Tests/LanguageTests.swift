@@ -223,4 +223,51 @@ final class LanguageTests: XCTestCase {
             XCTAssertFalse(TeachingPolicy.shouldRedirectSpeech(language: language, detectedLanguageID: "", confidence: 0.99))
         }
     }
+
+    func testSwedishFlowsUseSwedishPolicyAndCulturalContext() {
+        let language = LanguageModule.swedish
+        let learner = LearningEngine.project([], languageID: language.id)
+        let prompts = [TeachingPolicy.voice(language: language, learner: learner, theme: nil, interests: "", meaningLanguage: "English"),
+            TeachingPolicy.assessment(language: language), TeachingPolicy.greeting(language: language),
+            TeachingPolicy.help(language: language), TeachingPolicy.redirect(language: language),
+            TeachingPolicy.translation(language: language, meaningLanguage: "English"), TeachingPolicy.delegation(language: language),
+            TeachingPolicy.typedReply(language: language), TeachingPolicy.lookup(language: language, meaningLanguage: "English"),
+            TeachingPolicy.currentTopic(language: language)]
+        for prompt in prompts {
+            XCTAssertTrue(prompt.contains("Swedish"))
+            XCTAssertFalse(prompt.contains("Norwegian"))
+            XCTAssertFalse(prompt.contains("Bokmål"))
+        }
+        XCTAssertTrue(language.themes.allSatisfy { !$0.situation.contains("Norway") && !$0.situation.contains("Norwegian") })
+        XCTAssertEqual(language.locale, "sv-SE")
+        XCTAssertEqual(LanguageRegistry.module(for: "sv")?.greeting, "Hej!")
+        XCTAssertEqual(MeaningLanguages.greeting(in: "Swedish"), "Hej!")
+    }
+
+    func testSwedishSupportedVersusIndependentRecallAndIsolation() {
+        let supported = evidence(languageID: "sv", supported: true)
+        XCTAssertEqual(LearningEngine.validate(supported.assessments[0], session: supported)?.words.first?.kind, .assisted)
+        let independent = evidence(languageID: "sv")
+        XCTAssertEqual(LearningEngine.validate(independent.assessments[0], session: independent)?.words.first?.kind, .independent)
+        let sessions = [evidence(languageID: "sv"), evidence(languageID: "sv", day: 2)]
+        let swedish = LearningEngine.project(sessions, languageID: "sv", now: sessions[1].startedAt)
+        let norwegian = LearningEngine.project(sessions, languageID: "nb", now: sessions[1].startedAt)
+        XCTAssertEqual(swedish.challenge, 1)
+        XCTAssertEqual(swedish.words.first?.bars, 2)
+        XCTAssertEqual(norwegian.challenge, 0)
+        XCTAssertTrue(norwegian.words.isEmpty)
+    }
+
+    func testSwedishArchiveRoundTripAndEvidenceFromAnotherLanguage() throws {
+        var archive = Archive()
+        archive.preferences.learningLanguageID = "sv"
+        archive.sessions = [evidence(languageID: "nb"), evidence(languageID: "sv")]
+        let restored = try Archive.decode(archive.encoded())
+        XCTAssertEqual(restored.preferences.learningLanguageID, "sv")
+        XCTAssertEqual(restored.sessions.map(\.languageID), ["nb", "sv"])
+        XCTAssertEqual(LearningEngine.project(restored.sessions, languageID: "sv").words.count, 1)
+        var foreign = evidence(languageID: "sv")
+        foreign.assessments[0].words[0].language = "nb"
+        XCTAssertTrue(LearningEngine.validate(foreign.assessments[0], session: foreign)!.words.isEmpty)
+    }
 }

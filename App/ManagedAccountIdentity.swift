@@ -1,6 +1,10 @@
 import AuthenticationServices
 import Security
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 import MuralCore
 
 @MainActor
@@ -22,11 +26,18 @@ final class ManagedAccountIdentity: NSObject, ASWebAuthenticationPresentationCon
             .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
     private func prepareAnchor() throws {
+        #if os(iOS)
         guard webContinuation == nil, appleContinuation == nil,
               let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
                 .filter({ $0.activationState == .foregroundActive }).flatMap(\.windows).first(where: \.isKeyWindow)
         else { throw ManagedAccountError.unavailable }
         anchor = window
+        #else
+        guard webContinuation == nil, appleContinuation == nil,
+              let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? NSApplication.shared.mainWindow
+        else { throw ManagedAccountError.unavailable }
+        anchor = window
+        #endif
     }
     func google(configuration: ManagedAccountConfiguration, nonce: String, http: ManagedAccountHTTP) async throws -> Credential {
         try prepareAnchor()

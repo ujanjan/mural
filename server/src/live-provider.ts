@@ -10,7 +10,7 @@ export interface LiveProvider {
   hangup(sessionID: string): Promise<void>;
 }
 const languages: Record<string, string> = { 'nb-NO': 'Norwegian Bokmål with an Eastern Norwegian pronunciation',
-  'es-ES': 'Spanish from Spain', 'en-US': 'English', 'fr-FR': 'French from France' };
+  'es-ES': 'Spanish from Spain', 'en-US': 'English', 'fr-FR': 'French from France', 'sv-SE': 'Sweden Swedish (rikssvenska) with natural du-form address' };
 export const supportsLanguage = (language: string) => Object.hasOwn(languages, language);
 const sessionPath = (id: string) => {
   if (!id || id.length > 256 || /[\x00-\x20]/.test(id)) throw new ServiceError('invalid_provider_session', 502);

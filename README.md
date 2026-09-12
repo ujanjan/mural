@@ -2,6 +2,8 @@
 
 **The language app you eventually delete.**
 
+> **Fork note:** this fork ([ujanjan/mural](https://github.com/ujanjan/mural)) adds a **macOS app target** and a **Swedish (Svenska) language module** on top of upstream [Chuloo/mural](https://github.com/Chuloo/mural). See [Run on a Mac](#run-on-a-mac) and the Swedish notes under [What works today](#what-works-today).
+
 <p align="center">
   <img src="marketing/screenshots/iphone-17-spanish/01-hola.png" width="24%" alt="Mural greeting in Spanish with voice controls" />
   <img src="marketing/screenshots/iphone-17-spanish/02-conversacion.png" width="24%" alt="Spanish café conversation with English meaning subtitles" />
@@ -58,6 +60,28 @@ I still need to do on the phone. I will start the first live conversation.
 
 You should hear Mural greet you in your chosen language. You can now disconnect your phone from the Mac and use Wi-Fi or cellular.
 
+### Run on a Mac
+
+This fork adds a **MuralMac** target that builds the same SwiftUI app for macOS. Voice conversation, meaning subtitles, word lookup, themes and local learning storage work the same way; the debug audio-verification tool remains iPhone-only. The Mac app uses the iOS layout in a resizable window rather than a redesigned desktop interface.
+
+You need a Mac running **macOS 26 or later** (an M1 MacBook Air works), **Xcode 26 or later**, an Apple Account, and an OpenAI API project key as described above.
+
+1. Open `Mural.xcodeproj`, select the **MuralMac** scheme and **My Mac** as the destination.
+2. Select the **MuralMac** target, open **Signing & Capabilities**, enable automatic signing and choose your team. A free Personal Team works. If `no.william.mural.mac` is already taken, replace the bundle identifier with a unique value. `Config/Local.xcconfig` configures the team for both targets.
+3. Click **Run**. macOS asks for microphone access when you start a conversation; you can change it later in **System Settings → Privacy & Security → Microphone**.
+4. Choose **Svenska** in the welcome screens (or later in **Settings → Learning language → Swedish · Sweden**). Save your OpenAI key in **Settings → Advanced → Use your own API key**, then start a conversation.
+
+From the terminal:
+
+```sh
+xcodebuild -project Mural.xcodeproj -scheme MuralMac \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath .build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+The Mac build shares `Core/` with the iPhone app, so `swift test` covers both.
+
 A free Personal Team can run the app on your own phone; TestFlight and App Store distribution require Apple Developer Program membership. Free provisioning profiles expire after seven days. Refresh by running the same project again, preserving the team and bundle identifier. Export a learning backup before changing either or switching phones. See the [detailed iPhone guide](docs/run-on-iphone.md) for common setup problems. [Apple membership guidance](https://developer.apple.com/support/compare-memberships/)
 
 ## What works today
@@ -70,7 +94,7 @@ A free Personal Team can run the app on your own phone; TestFlight and App Store
 - **A fresh start:** the Talk screen returns to its greeting 15 seconds after a conversation ends. Tap **New conversation** to reset immediately. Your saved conversations and learning remain.
 - **Local records:** export or import a JSON learning backup, delete a conversation, or delete all learning data from Settings.
 
-The modules teach Norwegian Bokmål with an Eastern Norwegian voice target, Spanish from Spain, international English and French from France. Voice accent and teaching guidance are model instructions; fluent-speaker review is still needed before making pronunciation or learning-effectiveness claims.
+The modules teach Norwegian Bokmål with an Eastern Norwegian voice target, Spanish from Spain, international English, French from France, and — in this fork — standard Swedish (rikssvenska) with fika, sommarstuga and lagom cultural themes. Voice accent and teaching guidance are model instructions; fluent-speaker review is still needed before making pronunciation or learning-effectiveness claims.
 
 ## Privacy and API costs
 
