@@ -31,7 +31,11 @@ struct RootView: View {
         .sheet(isPresented: $coordinator.showAIConsent, onDismiss: { coordinator.resumeAfterAIConsent() }) {
             AIConsentView(agree: { coordinator.acceptAIConsent() }, decline: { coordinator.declineAIConsent() })
         }
+        #if os(iOS)
         .fullScreenCover(isPresented: $onboarding) { OnboardingView(coordinator: coordinator) { coordinator.store.updatePreferences { $0.hasOnboarded = true }; onboarding = false } }
+        #else
+        .sheet(isPresented: $onboarding) { OnboardingView(coordinator: coordinator) { coordinator.store.updatePreferences { $0.hasOnboarded = true }; onboarding = false } }
+        #endif
         .alert("A little interruption", isPresented: Binding(get: { coordinator.error != nil || coordinator.store.error != nil }, set: { if !$0 { coordinator.error = nil; coordinator.store.error = nil } })) {
             Button("OK", role: .cancel) { coordinator.error = nil; coordinator.store.error = nil }
         } message: { Text(coordinator.error ?? coordinator.store.error ?? "") }
@@ -59,12 +63,16 @@ struct RootView: View {
     private func shell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             content().background(MuralColor.cream).toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) { Brand().fixedSize() }.sharedBackgroundVisibility(.hidden)
-                ToolbarItem(placement: .topBarTrailing) {
+                #else
+                ToolbarItem(placement: .navigation) { Brand().fixedSize() }
+                #endif
+                ToolbarItem(placement: .primaryAction) {
                     Button { coordinator.showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
                         .accessibilityLabel("Settings")
                 }
-            }.toolbarBackground(MuralColor.cream, for: .navigationBar)
+            }.muralToolbarBackground()
         }
     }
 }
@@ -210,8 +218,8 @@ struct LookupView: View {
                 else { ProgressView("Finding the meaning…") }
                 Spacer()
             }.padding(28).frame(maxWidth: .infinity, alignment: .leading).background(MuralColor.cream)
-                .navigationTitle("A little meaning").navigationBarTitleDisplayMode(.inline)
-        }.presentationDetents([.medium, .large])
+                .navigationTitle("A little meaning").muralInlineTitleDisplayMode()
+        }.muralSheetSizing()
             .task { do { explanation = try await coordinator.lookup(word: item.word, sentence: item.sentence) } catch { self.error = error.localizedDescription } }
     }
 }
@@ -233,6 +241,6 @@ struct TypedReplyView: View {
                 Spacer()
             }.padding(26).foregroundStyle(MuralColor.ink).background(MuralColor.cream)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-        }.presentationDetents([.medium, .large]).onAppear { focused = true }
+        }.muralSheetSizing().onAppear { focused = true }
     }
 }

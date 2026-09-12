@@ -44,7 +44,8 @@ testSource = add('testSource','PBXFileReference',lastKnownFileType='sourcecode.s
 refs.append(testSource)
 product = add('product','PBXFileReference',explicitFileType='wrapper.application',path='Mural.app',sourceTree='BUILT_PRODUCTS_DIR')
 testProduct = add('testProduct','PBXFileReference',explicitFileType='wrapper.cfbundle',path='MuralUITests.xctest',sourceTree='BUILT_PRODUCTS_DIR')
-products = add('products','PBXGroup',children=[product,testProduct],name='Products',sourceTree='<group>')
+macProduct = add('macProduct','PBXFileReference',explicitFileType='wrapper.application',path='MuralMac.app',sourceTree='BUILT_PRODUCTS_DIR')
+products = add('products','PBXGroup',children=[product,testProduct,macProduct],name='Products',sourceTree='<group>')
 group = add('main','PBXGroup',children=refs+[products],sourceTree='<group>')
 corePackage = add('corePackage','XCLocalSwiftPackageReference',relativePath='.')
 rtcPackage = add('rtcPackage','XCRemoteSwiftPackageReference',repositoryURL='https://github.com/stasel/WebRTC.git',requirement={'kind':'exactVersion','version':'152.0.0'})
@@ -57,6 +58,9 @@ common = {'SDKROOT':'iphoneos','IPHONEOS_DEPLOYMENT_TARGET':'26.1','SWIFT_VERSIO
 targetSettings = {'PRODUCT_BUNDLE_IDENTIFIER':'no.william.mural','PRODUCT_NAME':'$(TARGET_NAME)','TARGETED_DEVICE_FAMILY':'1','GENERATE_INFOPLIST_FILE':'NO','INFOPLIST_FILE':'App/Info.plist','CODE_SIGN_STYLE':'Automatic','MARKETING_VERSION':'0.1.0','CURRENT_PROJECT_VERSION':'1','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME':'AccentColor','LD_RUNPATH_SEARCH_PATHS':['$(inherited)','@executable_path/Frameworks'],'ENABLE_PREVIEWS':'YES','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator'}
 targetSettings.update({'CODE_SIGN_ENTITLEMENTS':'$(MURAL_APPLE_ENTITLEMENTS)',
                       'SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) $(MURAL_APPLE_SWIFT_FLAGS)'})
+macSettings = {'SDKROOT':'macosx','MACOSX_DEPLOYMENT_TARGET':'26.0','SUPPORTED_PLATFORMS':'macosx','PRODUCT_BUNDLE_IDENTIFIER':'no.william.mural.mac','PRODUCT_NAME':'$(TARGET_NAME)','GENERATE_INFOPLIST_FILE':'NO','INFOPLIST_FILE':'App/Info-mac.plist','CODE_SIGN_STYLE':'Automatic','MARKETING_VERSION':'0.1.0','CURRENT_PROJECT_VERSION':'1','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME':'AccentColor','LD_RUNPATH_SEARCH_PATHS':['$(inherited)','@executable_path/../Frameworks'],'ENABLE_PREVIEWS':'YES'}
+macSettings.update({'CODE_SIGN_ENTITLEMENTS':'$(MURAL_APPLE_ENTITLEMENTS)',
+                    'SWIFT_ACTIVE_COMPILATION_CONDITIONS':'$(inherited) $(MURAL_APPLE_SWIFT_FLAGS)'})
 def configs(prefix, settings):
     ids=[]
     for name in ['Debug','Release']:
@@ -65,15 +69,19 @@ def configs(prefix, settings):
             s.update({'SWIFT_OPTIMIZATION_LEVEL':'-Onone' if name=='Debug' else '-O','DEBUG_INFORMATION_FORMAT':'dwarf' if name=='Debug' else 'dwarf-with-dsym'})
             if name=='Debug': s['SWIFT_ACTIVE_COMPILATION_CONDITIONS']='DEBUG'
         fields = {'buildSettings':s,'name':name}
-        if prefix in ['target', 'tests']: fields['baseConfigurationReference'] = signing
+        if prefix in ['target', 'mactarget', 'tests']: fields['baseConfigurationReference'] = signing
         ids.append(add(prefix+name,'XCBuildConfiguration',**fields))
     return add(prefix+'configs','XCConfigurationList',buildConfigurations=ids,defaultConfigurationIsVisible=0,defaultConfigurationName='Release')
 target=add('target','PBXNativeTarget',buildConfigurationList=configs('target',targetSettings),buildPhases=[sourcePhase,frameworks,resources],buildRules=[],dependencies=[],name='Mural',packageProductDependencies=[core,rtc],productName='Mural',productReference=product,productType='com.apple.product-type.application')
+macSources = add('macSources','PBXSourcesBuildPhase',buildActionMask=2147483647,files=[add(path+'buildmac','PBXBuildFile',fileRef=ref) for path,ref in zip([str(f.relative_to(root)) for f in sorted((root/'App').rglob('*.swift'))],[r for r in refs]) if path.endswith('.swift')],runOnlyForDeploymentPostprocessing=0)
+macFrameworks = add('macFrameworks','PBXFrameworksBuildPhase',buildActionMask=2147483647,files=[add('coreBuildMac','PBXBuildFile',productRef=core),add('rtcBuildMac','PBXBuildFile',productRef=rtc)],runOnlyForDeploymentPostprocessing=0)
+macResources = add('macResources','PBXResourcesBuildPhase',buildActionMask=2147483647,files=[add('assetsBuildMac','PBXBuildFile',fileRef=asset),add('noticesBuildMac','PBXBuildFile',fileRef=notices),add('privacyBuildMac','PBXBuildFile',fileRef=privacy)],runOnlyForDeploymentPostprocessing=0)
+macTarget=add('macTarget','PBXNativeTarget',buildConfigurationList=configs('mactarget',macSettings),buildPhases=[macSources,macFrameworks,macResources],buildRules=[],dependencies=[],name='MuralMac',packageProductDependencies=[core,rtc],productName='MuralMac',productReference=macProduct,productType='com.apple.product-type.application')
 testSources = add('testSources','PBXSourcesBuildPhase',buildActionMask=2147483647,files=[add('testBuild','PBXBuildFile',fileRef=testSource)],runOnlyForDeploymentPostprocessing=0)
 proxy = add('testProxy','PBXContainerItemProxy',containerPortal=uid('project'),proxyType=1,remoteGlobalIDString=target,remoteInfo='Mural')
 dependency=add('testDependency','PBXTargetDependency',target=target,targetProxy=proxy)
 testTarget=add('testTarget','PBXNativeTarget',buildConfigurationList=configs('tests',{'PRODUCT_BUNDLE_IDENTIFIER':'no.william.mural.uitests','PRODUCT_NAME':'$(TARGET_NAME)','GENERATE_INFOPLIST_FILE':'YES','TEST_TARGET_NAME':'Mural','TARGETED_DEVICE_FAMILY':'1','CODE_SIGN_STYLE':'Automatic'}),buildPhases=[testSources],buildRules=[],dependencies=[dependency],name='MuralUITests',productName='MuralUITests',productReference=testProduct,productType='com.apple.product-type.bundle.ui-testing')
-project=add('project','PBXProject',attributes={'BuildIndependentTargetsInParallel':'YES','LastUpgradeCheck':'2640','TargetAttributes':{target:{'CreatedOnToolsVersion':'26.4'},testTarget:{'CreatedOnToolsVersion':'26.4','TestTargetID':target}}},buildConfigurationList=configs('project',common),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','nb','Base'],mainGroup=group,packageReferences=[corePackage,rtcPackage],productRefGroup=products,projectDirPath='',projectRoot='',targets=[target,testTarget])
+project=add('project','PBXProject',attributes={'BuildIndependentTargetsInParallel':'YES','LastUpgradeCheck':'2640','TargetAttributes':{target:{'CreatedOnToolsVersion':'26.4'},macTarget:{'CreatedOnToolsVersion':'26.4'},testTarget:{'CreatedOnToolsVersion':'26.4','TestTargetID':target}}},buildConfigurationList=configs('project',common),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','nb','sv','Base'],mainGroup=group,packageReferences=[corePackage,rtcPackage],productRefGroup=products,projectDirPath='',projectRoot='',targets=[target,macTarget,testTarget])
 folder=root/'Mural.xcodeproj';folder.mkdir(exist_ok=True)
 folder.joinpath('project.pbxproj').write_text('// !$*UTF8*$!\n'+encode({'archiveVersion':1,'classes':{},'objectVersion':60,'objects':objects,'rootObject':project})+'\n')
 scheme=folder/'xcshareddata'/'xcschemes';scheme.mkdir(parents=True,exist_ok=True)
@@ -82,6 +90,14 @@ scheme.joinpath('Mural.xcscheme').write_text(f'''<?xml version="1.0" encoding="U
 <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{target}" BuildableName="Mural.app" BlueprintName="Mural" ReferencedContainer="container:Mural.xcodeproj"/></BuildActionEntry></BuildActionEntries></BuildAction>
 <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables><TestableReference skipped="NO"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{testTarget}" BuildableName="MuralUITests.xctest" BlueprintName="MuralUITests" ReferencedContainer="container:Mural.xcodeproj"/></TestableReference></Testables></TestAction>
 <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{target}" BuildableName="Mural.app" BlueprintName="Mural" ReferencedContainer="container:Mural.xcodeproj"/></BuildableProductRunnable></LaunchAction>
+<ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"/>
+<AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+</Scheme>''')
+scheme.joinpath('MuralMac.xcscheme').write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2640" version="1.3">
+<BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{macTarget}" BuildableName="MuralMac.app" BlueprintName="MuralMac" ReferencedContainer="container:Mural.xcodeproj"/></BuildActionEntry></BuildActionEntries></BuildAction>
+<TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables></Testables></TestAction>
+<LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{macTarget}" BuildableName="MuralMac.app" BlueprintName="MuralMac" ReferencedContainer="container:Mural.xcodeproj"/></BuildableProductRunnable></LaunchAction>
 <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"/>
 <AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
 </Scheme>''')

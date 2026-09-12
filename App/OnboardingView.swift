@@ -81,7 +81,7 @@ struct OnboardingView: View {
         }
         .background(OnboardingBackground())
         .foregroundStyle(MuralColor.ink).tint(MuralColor.ink)
-        .interactiveDismissDisabled()
+        .muralInteractiveDismissDisabled()
         .sensoryFeedback(.selection, trigger: targetID)
         .task(id: reduceMotion) {
             guard !reduceMotion else { return }
@@ -188,7 +188,7 @@ struct AIConsentView: View {
             Text("Before we talk.").font(.system(.title, design: .rounded, weight: .semibold))
                 .accessibilityIdentifier("ai-consent-title")
             Text(AIProcessingConsent.summary).font(.body)
-            Text("Your learning record is stored on this iPhone. Mural does not save raw audio. You can keep browsing your saved words and conversations without agreeing.")
+            Text("Your learning record is stored on \(PlatformInfo.deviceName). Mural does not save raw audio. You can keep browsing your saved words and conversations without agreeing.")
                 .font(.subheadline).foregroundStyle(MuralColor.secondary)
             Link("Privacy policy", destination: URL(string: "https://mural.chat/privacy/")!).font(.subheadline).underline()
             Button("Agree and continue", action: agree).font(.headline).frame(maxWidth: .infinity).padding(18)
@@ -197,7 +197,7 @@ struct AIConsentView: View {
                 .accessibilityIdentifier("ai-consent-decline")
         }.padding(28).foregroundStyle(MuralColor.ink).tint(MuralColor.ink)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(MuralColor.cream)
-            .presentationDetents([.large]).interactiveDismissDisabled()
+            .muralLargeSheetSizing().muralInteractiveDismissDisabled()
     }
 }
 

@@ -12,6 +12,17 @@ xcodebuild -project Mural.xcodeproj -scheme Mural \
   CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
 ```
 
+For the macOS app added by this fork, select the **MuralMac** scheme and build for My Mac:
+
+```sh
+xcodebuild -project Mural.xcodeproj -scheme MuralMac \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath .build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+The MuralMac target shares the App/ sources through the platform shims in `App/PlatformSupport.swift`; audio-session and presentation details that only exist on iOS stay behind `#if os(iOS)`.
+
 Create an iPhone 17 simulator in Xcode’s **Devices and Simulators** window. If you name it `iPhone 17`, run UI tests with:
 
 ```sh

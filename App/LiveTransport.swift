@@ -28,6 +28,7 @@ enum ConnectionState: Equatable { case idle, connecting, active, closing, ended,
         guard granted else { throw TransportError.microphone }
         try Task.checkCancellation()
         guard attempt == token else { throw CancellationError() }
+        #if os(iOS)
         // WebRTC reapplies this configuration when its audio unit starts.
         // Setting AVAudioSession alone loses the speaker preference at that point.
         let audioConfiguration = RTCAudioSessionConfiguration()
@@ -43,6 +44,9 @@ enum ConnectionState: Equatable { case idle, connecting, active, closing, ended,
             ownsAudioActivation = true
             audio.unlockForConfiguration()
         } catch { audio.unlockForConfiguration(); throw error }
+        #else
+        // macOS has no shared audio session; WebRTC manages the default input and output devices itself.
+        #endif
         RTCInitializeSSL()
         let factory = RTCPeerConnectionFactory(encoderFactory: RTCDefaultVideoEncoderFactory(), decoderFactory: RTCDefaultVideoDecoderFactory())
         self.factory = factory
@@ -113,11 +117,13 @@ enum ConnectionState: Equatable { case idle, connecting, active, closing, ended,
         localTrack?.isEnabled = false; localTrack = nil
         channel?.delegate = nil; channel?.close(); channel = nil
         peer?.delegate = nil; peer?.close(); peer = nil; factory = nil
+        #if os(iOS)
         if ownsAudioActivation {
             let audio = RTCAudioSession.sharedInstance(); audio.lockForConfiguration()
             try? audio.setActive(false); audio.unlockForConfiguration()
             ownsAudioActivation = false
         }
+        #endif
         lastInput = 0; lastOutput = 0; onLevels?(0, 0)
     }
     private func startMetering() {
@@ -147,9 +153,14 @@ enum ConnectionState: Equatable { case idle, connecting, active, closing, ended,
         case microphone, connection, timeout
         var errorDescription: String? {
             switch self {
-            case .microphone: "Allow microphone access in iPhone Settings → Mural to start a conversation."
-            case .connection: "The voice connection couldn’t be established. Check your connection and try again."
-            case .timeout: "The voice connection took too long. Please try again."
+            case .microphone:
+                #if os(iOS)
+                return "Allow microphone access in iPhone Settings → Mural to start a conversation."
+                #else
+                return "Allow microphone access in System Settings → Privacy & Security → Microphone → Mural to start a conversation."
+                #endif
+            case .connection: return "The voice connection couldn’t be established. Check your connection and try again."
+            case .timeout: return "The voice connection took too long. Please try again."
             }
         }
     }

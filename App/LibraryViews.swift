@@ -156,7 +156,7 @@ struct WordDetailView: View {
                 Spacer()
             }.padding(28).frame(maxWidth: .infinity, alignment: .leading).background(MuralColor.cream).foregroundStyle(MuralColor.ink)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }.presentationDetents([.medium, .large])
+        }.muralSheetSizing()
     }
 }
 
@@ -194,7 +194,7 @@ struct TranscriptView: View {
                     } else { Text("Start a conversation and your words will appear here.") }
                 }.padding(26)
             }.background(MuralColor.cream).foregroundStyle(MuralColor.ink)
-                .navigationTitle("Our conversation").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("Our conversation").muralInlineTitleDisplayMode()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
@@ -218,7 +218,7 @@ struct SessionHistoryView: View {
                     }.swipeActions { Button("Delete", role: .destructive) { deleting = session }.disabled(session.endedAt == nil) }
                 }
             }.scrollContentBackground(.hidden).background(MuralColor.cream)
-                .navigationTitle("Past conversations").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("Past conversations").muralInlineTitleDisplayMode()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }.sheet(item: $selected) { session in EditableTranscriptView(sessionID: session.id, store: store) }
             .confirmationDialog("Delete this conversation and its learning evidence?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
@@ -261,7 +261,7 @@ struct EditableTranscriptView: View {
                     ForEach(session?.topics ?? []) { topic in Text(.init(topic.text)); SourcesView(sources: topic.sources, date: topic.retrievedAt) }
                 }.padding(26)
             }.background(MuralColor.cream).foregroundStyle(MuralColor.ink)
-                .navigationTitle("Our conversation").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("Our conversation").muralInlineTitleDisplayMode()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }.sheet(isPresented: Binding(get: { editingID != nil }, set: { if !$0 { editingID = nil } })) {
             NavigationStack {
@@ -269,12 +269,12 @@ struct EditableTranscriptView: View {
                     TextField("What you said", text: $editedText, axis: .vertical).lineLimit(4...10).padding(18).background(.white, in: RoundedRectangle(cornerRadius: 20))
                     Text("Correct a misheard phrase. Learning evidence from the old wording will be removed; the original remains in your backup history.").font(.footnote).foregroundStyle(MuralColor.secondary)
                     Spacer()
-                }.padding(24).background(MuralColor.cream).navigationTitle("What you said").navigationBarTitleDisplayMode(.inline)
+                }.padding(24).background(MuralColor.cream).navigationTitle("What you said").muralInlineTitleDisplayMode()
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editingID = nil } }
                         ToolbarItem(placement: .confirmationAction) { Button("Save") { if let id = editingID { store.correctPassage(sessionID: sessionID, passageID: id, text: editedText) }; editingID = nil } }
                     }
-            }.presentationDetents([.medium, .large])
+            }.muralSheetSizing()
         }
     }
 }
@@ -316,9 +316,9 @@ struct SettingsView: View {
                 }
                 Section {
                     DisclosureGroup(isExpanded: $showingAPIKey) {
-                        if hasKey { Label("Your key is saved on this iPhone", systemImage: "checkmark.shield") }
+                        if hasKey { Label("Your key is saved on \(PlatformInfo.deviceName)", systemImage: "checkmark.shield") }
                         SecureField(hasKey ? "Replace OpenAI key" : "OpenAI API key", text: $key)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().accessibilityIdentifier("api-key")
+                            .muralNoAutocapitalization().autocorrectionDisabled().privacySensitive().accessibilityIdentifier("api-key")
                         Button(hasKey ? "Save replacement key" : "Save key") {
                             do { try CredentialStore.save(key); key = ""; hasKey = true; message = "Saved securely. Start a conversation to connect." }
                             catch { message = error.localizedDescription }
@@ -330,7 +330,7 @@ struct SettingsView: View {
                                 catch { message = error.localizedDescription }
                             }.disabled(coordinator.isRunning)
                         }
-                        Text("Your OpenAI account pays for usage. The key stays in this iPhone’s Keychain and is sent only to OpenAI.")
+                        Text("Your OpenAI account pays for usage. The key stays in \(PlatformInfo.deviceName)’s Keychain and is sent only to OpenAI.")
                             .font(.footnote).foregroundStyle(MuralColor.secondary)
                     } label: { Label("Use your own API key", systemImage: "key").accessibilityIdentifier("advanced-api-key") }
                     if let message { Text(message).font(.footnote).foregroundStyle(MuralColor.secondary) }
@@ -373,7 +373,7 @@ struct SettingsView: View {
                     Button("Open-source notices") { notices = true }
                 }
             }.scrollContentBackground(.hidden).background(MuralColor.cream).tint(MuralColor.secondary)
-                .navigationTitle("Make yourself comfortable").navigationBarTitleDisplayMode(.inline)
+                .navigationTitle("Make yourself comfortable").muralInlineTitleDisplayMode()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { key = ""; dismiss() } } }
         }
         .fileExporter(isPresented: $exporting, document: backup, contentType: .json, defaultFilename: "Mural-learning-backup") { result in if case .failure(let error) = result { message = error.localizedDescription } }
@@ -383,13 +383,13 @@ struct SettingsView: View {
                 try store.importData(Archive.readImportData(from: url)); message = "Your backup has been imported."
             } catch { message = error.localizedDescription }
         }
-        .confirmationDialog("Delete all learning data on this phone?", isPresented: $deleting, titleVisibility: .visible) {
+        .confirmationDialog("Delete all learning data on this device?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete all learning data", role: .destructive) { coordinator.deleteLearningData() }
         } message: { Text("This removes conversations, vocabulary and progress. Export a backup first if you want to keep them. Your API key and preferences remain.") }
         .sheet(isPresented: $notices) {
             NavigationStack {
                 ScrollView { Text(Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt").flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "Notices unavailable.").font(.footnote).padding(24).textSelection(.enabled) }
-                    .navigationTitle("Open-source notices").navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle("Open-source notices").muralInlineTitleDisplayMode()
             }
         }
     }

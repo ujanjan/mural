@@ -13,7 +13,7 @@ struct ManagedAccountView: View {
                 VStack(spacing: 8) {
                     Text(store.session == nil ? "Welcome to Mural" : "Your Mural account")
                         .font(.system(.title, design: .rounded, weight: .semibold)).multilineTextAlignment(.center)
-                    Text("Your conversations and learning history stay on this iPhone.")
+                    Text("Your conversations and learning history stay on \(PlatformInfo.deviceName).")
                         .font(.subheadline).foregroundStyle(MuralColor.secondary).multilineTextAlignment(.center)
                 }
                 if store.configuration == nil {
@@ -66,18 +66,19 @@ struct ManagedAccountView: View {
             }.padding(24).frame(maxWidth: 520).frame(maxWidth: .infinity)
         }
         .background(MuralColor.cream).foregroundStyle(MuralColor.ink)
-        .navigationTitle("Account").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Account").muralInlineTitleDisplayMode()
         .task { store.refresh() }
         .onDisappear { store.cancelSignIn() }
         .confirmationDialog("Delete your Mural account?", isPresented: $confirmDeletion, titleVisibility: .visible) {
             Button("Delete account", role: .destructive, action: store.deleteAccount)
             Button("Keep account", role: .cancel) {}
         } message: {
-            Text("This removes your sign-in details and account sessions. Learning history stays on this iPhone; you can remove it separately in Settings.")
+            Text("This removes your sign-in details and account sessions. Learning history stays on \(PlatformInfo.deviceName); you can remove it separately in Settings.")
         }
     }
 }
 
+#if os(iOS)
 private struct ManagedAppleSignInButton: UIViewRepresentable {
     let action: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(action: action) }
@@ -96,3 +97,24 @@ private struct ManagedAppleSignInButton: UIViewRepresentable {
         @objc func signIn() { action() }
     }
 }
+#else
+private struct ManagedAppleSignInButton: NSViewRepresentable {
+    let action: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+    func makeNSView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .whiteOutline)
+        button.cornerRadius = 24
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.signIn)
+        return button
+    }
+    func updateNSView(_ nsView: ASAuthorizationAppleIDButton, context: Context) {
+        context.coordinator.action = action; nsView.isEnabled = context.environment.isEnabled
+    }
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action }
+        @objc func signIn() { action() }
+    }
+}
+#endif
